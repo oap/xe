@@ -50,6 +50,34 @@ streamlit run app.py
 
 ---
 
+## ☁️ Deployment (部署指南)
+
+This project is configured with a **CI/CD pipeline** using GitHub Actions. It automatically builds a Docker container and publishes it to **GitHub Container Registry (ghcr.io)** whenever you push changes to the `main` branch.
+
+### 1. Automated Build (自动构建)
+Simply push your code changes to the `main` branch:
+```bash
+git add .
+git commit -m "update app"
+git push origin main
+```
+GitHub Actions will automatically build the Docker image. You can find your image at:
+`ghcr.io/oap/xe:latest`
+
+> **Note:** For the first deployment, go to your GitHub Repo -> **Packages** -> **Package Settings** and change the visibility to **Public** so Cloudflare can pull the image without authentication tokens.
+
+### 2. Host on Cloudflare (Cloudflare 部署)
+You can deploy this container directly using **Cloudflare Containers**:
+
+1.  Log in to the **Cloudflare Dashboard**.
+2.  Navigate to **Compute (Containers)**.
+3.  Create a new deployment.
+4.  **Image URL:** `ghcr.io/oap/xe:latest`
+5.  **Port:** `8501` (Streamlit default).
+6.  **Deploy!** Cloudflare will pull the latest image and host your app globally.
+
+---
+
 ## 💡 How it Works (指标说明)
 
 - **RSI < 30:** Oversold condition. The currency may be undervalued (Buying opportunity).

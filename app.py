@@ -181,6 +181,22 @@ else:
 # Data Fetching
 @st.cache_data(ttl=3600)
 def get_data(source, target, period):
+    
+    def clean_data(df):
+        # 1. Drop NaNs
+        df = df.dropna()
+        # 2. Filter invalid prices
+        if 'Close' in df.columns:
+            df = df[df['Close'] > 0]
+        # 3. Filter extreme outliers (> 20% daily change)
+        # This catches "bad ticks" where price jumps to 0 or massive value
+        if 'Close' in df.columns:
+            pct_change = df['Close'].pct_change()
+            # Keep rows where pct_change is NaN (first row) OR abs change < 0.2
+            mask = (pct_change.isna()) | (pct_change.abs() < 0.20)
+            df = df[mask]
+        return df
+
     is_dxy = target == "DXY (US Dollar Index)"
     
     if is_dxy:
@@ -188,7 +204,9 @@ def get_data(source, target, period):
         if data.empty: return None
         if isinstance(data.columns, pd.MultiIndex): data.columns = data.columns.droplevel(1)
         
-        df = data.copy()
+        df = clean_data(data.copy())
+        if df.empty: return None
+        
         # DXY is just points, no "Inverse" really, but for code safety:
         df['Close_Inv'] = df['Close']
         df['Open_Inv'] = df['Open']
@@ -202,13 +220,15 @@ def get_data(source, target, period):
     
     if data is not None and not data.empty:
         if isinstance(data.columns, pd.MultiIndex): data.columns = data.columns.droplevel(1)
-        df = data.copy()
-        # Raw data is already Source->Target
-        df['Close_Inv'] = 1 / df['Close']
-        df['Open_Inv'] = 1 / df['Open']
-        df['High_Inv'] = 1 / df['Low'] 
-        df['Low_Inv'] = 1 / df['High']
-        return df
+        df = clean_data(data.copy())
+        
+        if not df.empty:
+            # Raw data is already Source->Target
+            df['Close_Inv'] = 1 / df['Close']
+            df['Open_Inv'] = 1 / df['Open']
+            df['High_Inv'] = 1 / df['Low'] 
+            df['Low_Inv'] = 1 / df['High']
+            return df
 
     # Attempt 2: Target -> Source (e.g. USDCAD=X)
     t2 = f"{target}{source}=X"
@@ -216,30 +236,31 @@ def get_data(source, target, period):
     
     if data is not None and not data.empty:
         if isinstance(data.columns, pd.MultiIndex): data.columns = data.columns.droplevel(1)
-        df = data.copy()
+        df = clean_data(data.copy())
         
-        # Raw data is Target->Source. We need to FLIP it to make 'Close' match Source->Target
-        # So 'Close' becomes 1/RawClose
-        # And 'Close_Inv' becomes RawClose
-        
-        raw_open = df['Open']
-        raw_high = df['High']
-        raw_low = df['Low']
-        raw_close = df['Close']
-        
-        # Invert to get Source->Target (Primary View)
-        df['Open'] = 1 / raw_open
-        df['High'] = 1 / raw_low  # Swap High/Low
-        df['Low'] = 1 / raw_high
-        df['Close'] = 1 / raw_close
-        
-        # "Inv" view (Target->Source) is actually the raw data
-        df['Open_Inv'] = raw_open
-        df['High_Inv'] = raw_high
-        df['Low_Inv'] = raw_low
-        df['Close_Inv'] = raw_close
-        
-        return df
+        if not df.empty:
+            # Raw data is Target->Source. We need to FLIP it to make 'Close' match Source->Target
+            # So 'Close' becomes 1/RawClose
+            # And 'Close_Inv' becomes RawClose
+            
+            raw_open = df['Open']
+            raw_high = df['High']
+            raw_low = df['Low']
+            raw_close = df['Close']
+            
+            # Invert to get Source->Target (Primary View)
+            df['Open'] = 1 / raw_open
+            df['High'] = 1 / raw_low  # Swap High/Low
+            df['Low'] = 1 / raw_high
+            df['Close'] = 1 / raw_close
+            
+            # "Inv" view (Target->Source) is actually the raw data
+            df['Open_Inv'] = raw_open
+            df['High_Inv'] = raw_high
+            df['Low_Inv'] = raw_low
+            df['Close_Inv'] = raw_close
+            
+            return df
 
     return None
 
